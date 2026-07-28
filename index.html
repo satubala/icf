@@ -1,1 +1,763 @@
-hello world
+<!DOCTYPE html>
+<html lang="bn" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ICF Player - প্রিমিয়াম আইপিটিভি প্লেয়ার</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#eef2ff',
+                            500: '#6366f1',
+                            600: '#4f46e5',
+                            700: '#4338ca',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- FontAwesome CDN -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <!-- HLS.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <style>
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
+        
+        .glass {
+            background: rgba(15, 23, 42, 0.75);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .glass-card {
+            background: rgba(30, 41, 59, 0.6);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        .glow-effect {
+            box-shadow: 0 0 25px -5px rgba(99, 102, 241, 0.3);
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans antialiased selection:bg-indigo-500 selection:text-white">
+
+    <!-- Toast Notification Container -->
+    <div id="toastContainer" class="fixed top-20 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+    <!-- Header Bar -->
+    <header class="glass sticky top-0 z-40 px-4 lg:px-8 py-3 shadow-xl">
+        <div class="max-w-7xl mx-auto flex items-center justify-between gap-4">
+            <!-- Brand Logo -->
+            <div class="flex items-center gap-3">
+                <div class="bg-gradient-to-tr from-indigo-600 to-cyan-500 p-2.5 rounded-2xl text-white shadow-lg glow-effect flex items-center justify-center">
+                    <i class="fa-solid fa-play text-xl"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-extrabold tracking-tight bg-gradient-to-r from-indigo-400 via-cyan-300 to-white bg-clip-text text-transparent">
+                        ICF Player
+                    </h1>
+                    <p class="text-[10px] uppercase font-semibold tracking-wider text-indigo-400/80">Next-Gen IPTV Streaming</p>
+                </div>
+            </div>
+
+            <!-- Action Controls -->
+            <div class="flex items-center gap-2 sm:gap-3">
+                <button onclick="openModal('addChannelModal')" class="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs sm:text-sm font-medium px-3.5 py-2 rounded-xl transition-all shadow-lg shadow-indigo-600/30 active:scale-95">
+                    <i class="fa-solid fa-plus"></i>
+                    <span class="hidden sm:inline">লিংক যোগ করুন</span>
+                </button>
+
+                <button onclick="openModal('shortcutModal')" title="কীবোর্ড শর্টকাট" class="p-2.5 bg-slate-800/80 hover:bg-slate-700 text-slate-300 rounded-xl transition border border-slate-700/50">
+                    <i class="fa-solid fa-keyboard"></i>
+                </button>
+
+                <div class="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full bg-red-950/40 border border-red-500/30">
+                    <span class="relative flex h-2.5 w-2.5">
+                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                        <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span>
+                    </span>
+                    <span class="text-xs font-bold text-red-400 tracking-wider">LIVE</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Grid -->
+    <main class="max-w-7xl mx-auto px-4 lg:px-8 py-6 w-full flex-grow flex flex-col lg:flex-row gap-6">
+        
+        <!-- Left Section: Video Player & Controls -->
+        <section class="flex-grow flex flex-col gap-4">
+            
+            <!-- Player Wrapper -->
+            <div class="relative w-full aspect-video bg-black rounded-2xl overflow-hidden shadow-2xl border border-slate-800 group glow-effect">
+                
+                <!-- Video Element -->
+                <video id="videoPlayer" class="w-full h-full object-contain cursor-pointer" autoplay playsinline></video>
+
+                <!-- Loading Spinner Overlay -->
+                <div id="playerSpinner" class="absolute inset-0 bg-slate-950/80 backdrop-blur-sm flex flex-col items-center justify-center gap-3 transition-opacity duration-300 pointer-events-none opacity-0">
+                    <i class="fa-solid fa-circle-notch fa-spin text-4xl text-indigo-500"></i>
+                    <p class="text-xs font-medium text-slate-300 animate-pulse">স্ট্রিমিং লোড হচ্ছে...</p>
+                </div>
+
+                <!-- Live Watermark Overlay -->
+                <div class="absolute top-4 left-4 flex items-center gap-2 bg-slate-950/60 backdrop-blur-md px-3 py-1 rounded-full border border-slate-700/50 pointer-events-none">
+                    <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <span id="currentChannelBadge" class="text-xs font-semibold text-slate-200">ICF Live</span>
+                </div>
+            </div>
+
+            <!-- Player Info & Quick Bar -->
+            <div class="glass p-4 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                
+                <!-- Active Channel Info -->
+                <div class="flex items-center gap-3">
+                    <div class="w-12 h-12 rounded-xl bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400 text-xl font-bold">
+                        <i class="fa-solid fa-tv" id="channelHeaderIcon"></i>
+                    </div>
+                    <div>
+                        <h2 id="activeChannelTitle" class="text-base font-bold text-slate-100">চ্যানেল নির্বাচন করুন</h2>
+                        <p id="activeChannelMeta" class="text-xs text-slate-400">লাইভ স্ট্রিমিং মোড</p>
+                    </div>
+                </div>
+
+                <!-- Player Interactive Control Buttons -->
+                <div class="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
+                    <!-- Quality Selector -->
+                    <div class="relative">
+                        <select id="qualitySelect" class="bg-slate-800/90 hover:bg-slate-700 text-xs text-slate-200 rounded-xl px-3 py-2 border border-slate-700 focus:outline-none focus:border-indigo-500 cursor-pointer">
+                            <option value="-1">Auto Quality</option>
+                        </select>
+                    </div>
+
+                    <!-- Audio Track Selector -->
+                    <div id="audioTrackWrapper" class="hidden relative">
+                        <select id="audioSelect" class="bg-slate-800/90 hover:bg-slate-700 text-xs text-slate-200 rounded-xl px-3 py-2 border border-slate-700 focus:outline-none focus:border-indigo-500 cursor-pointer">
+                            <option value="-1">Default Audio</option>
+                        </select>
+                    </div>
+
+                    <!-- PiP Button -->
+                    <button id="pipBtn" onclick="togglePiP()" title="Picture in Picture (P)" class="p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl border border-slate-700 transition active:scale-95">
+                        <i class="fa-solid fa-clone"></i>
+                    </button>
+
+                    <!-- Fullscreen Button -->
+                    <button id="fullscreenBtn" onclick="toggleFullscreen()" title="Full Screen (F)" class="p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl border border-slate-700 transition active:scale-95">
+                        <i class="fa-solid fa-expand"></i>
+                    </button>
+
+                    <!-- Favorite Button -->
+                    <button id="favCurrentBtn" onclick="toggleCurrentFavorite()" title="লাইক/ফেভারিট সেভ করুন" class="p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-400 rounded-xl border border-slate-700 transition active:scale-95">
+                        <i class="fa-solid fa-heart" id="favCurrentIcon"></i>
+                    </button>
+
+                    <!-- Share Button -->
+                    <button onclick="shareCurrentChannel()" title="শেয়ার করুন" class="p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl border border-slate-700 transition active:scale-95">
+                        <i class="fa-solid fa-share-nodes"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Keyboard Shortcuts Quick Bar Info -->
+            <div class="hidden lg:flex items-center justify-between px-4 py-2 bg-slate-900/50 rounded-xl border border-slate-800/80 text-[11px] text-slate-400">
+                <span><kbd class="px-1.5 py-0.5 bg-slate-800 rounded text-slate-300">Space</kbd> প্লে/পজ</span>
+                <span><kbd class="px-1.5 py-0.5 bg-slate-800 rounded text-slate-300">F</kbd> ফুলস্ক্রিন</span>
+                <span><kbd class="px-1.5 py-0.5 bg-slate-800 rounded text-slate-300">M</kbd> মিউট</span>
+                <span><kbd class="px-1.5 py-0.5 bg-slate-800 rounded text-slate-300">P</kbd> পপ-আপ (PiP)</span>
+                <span><kbd class="px-1.5 py-0.5 bg-slate-800 rounded text-slate-300">← / →</kbd> চ্যানেল সুইচ</span>
+            </div>
+        </section>
+
+        <!-- Right Section: Sidebar / Channel Management -->
+        <aside class="w-full lg:w-96 flex flex-col gap-4">
+            
+            <!-- Controls Box (Search & Categories) -->
+            <div class="glass p-4 rounded-2xl flex flex-col gap-3">
+                
+                <!-- Search Input -->
+                <div class="relative">
+                    <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm"></i>
+                    <input type="text" id="searchInput" oninput="filterChannels()" placeholder="চ্যানেল খুঁজুন..." class="w-full bg-slate-900/90 text-sm text-slate-100 placeholder-slate-500 pl-10 pr-4 py-2.5 rounded-xl border border-slate-700/80 focus:outline-none focus:border-indigo-500 transition">
+                </div>
+
+                <!-- Category Tabs -->
+                <div class="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs no-scrollbar" id="categoryTabs">
+                    <button onclick="setCategory('all')" class="cat-btn active px-3 py-1.5 rounded-lg bg-indigo-600 text-white font-medium whitespace-nowrap transition">সকল (All)</button>
+                    <button onclick="setCategory('sports')" class="cat-btn px-3 py-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-white font-medium whitespace-nowrap transition">খেলাধুলা</button>
+                    <button onclick="setCategory('favorites')" class="cat-btn px-3 py-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-white font-medium whitespace-nowrap transition">❤️ প্রিয়</button>
+                    <button onclick="setCategory('custom')" class="cat-btn px-3 py-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-white font-medium whitespace-nowrap transition">কাস্টম</button>
+                </div>
+            </div>
+
+            <!-- Channel List Container -->
+            <div class="glass p-3 rounded-2xl flex-grow flex flex-col gap-2 max-h-[500px] lg:max-h-[600px] overflow-y-auto" id="channelList">
+                <!-- Channel Cards render dynamically -->
+            </div>
+        </aside>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="mt-auto py-4 border-t border-slate-900 bg-slate-950/80 text-center text-xs text-slate-500">
+        <p>&copy; 2026 ICF Player. সর্বস্বত্ব সংরক্ষিত।</p>
+    </footer>
+
+    <!-- MODAL: Add Custom M3U8 Channel -->
+    <div id="addChannelModal" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 hidden">
+        <div class="glass max-w-md w-full rounded-2xl p-6 flex flex-col gap-4 shadow-2xl relative border border-slate-700">
+            <button onclick="closeModal('addChannelModal')" class="absolute top-4 right-4 text-slate-400 hover:text-white">
+                <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
+            <h3 class="text-lg font-bold text-slate-100 flex items-center gap-2">
+                <i class="fa-solid fa-link text-indigo-400"></i> নতুন চ্যানেল লিংক যোগ করুন
+            </h3>
+            <form onsubmit="handleAddChannel(event)" class="flex flex-col gap-3">
+                <div>
+                    <label class="text-xs text-slate-400 mb-1 block">চ্যানেলের নাম</label>
+                    <input type="text" id="newChannelName" required placeholder="উদাহরণ: T Sports HD" class="w-full bg-slate-900 border border-slate-700 text-sm text-slate-100 px-3.5 py-2.5 rounded-xl focus:outline-none focus:border-indigo-500">
+                </div>
+                <div>
+                    <label class="text-xs text-slate-400 mb-1 block">M3U8 স্ট্রিমিং ইউআরএল (URL)</label>
+                    <input type="url" id="newChannelUrl" required placeholder="http://example.com/stream.m3u8" class="w-full bg-slate-900 border border-slate-700 text-sm text-slate-100 px-3.5 py-2.5 rounded-xl focus:outline-none focus:border-indigo-500">
+                </div>
+                <div>
+                    <label class="text-xs text-slate-400 mb-1 block">ক্যাটাগরি</label>
+                    <select id="newChannelCat" class="w-full bg-slate-900 border border-slate-700 text-sm text-slate-100 px-3.5 py-2.5 rounded-xl focus:outline-none focus:border-indigo-500">
+                        <option value="sports">খেলাধুলা (Sports)</option>
+                        <option value="general">সাধারণ (General)</option>
+                    </select>
+                </div>
+                <button type="submit" class="mt-2 bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-sm py-2.5 rounded-xl transition shadow-lg shadow-indigo-600/30">
+                    সংরক্ষণ করুন
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: Keyboard Shortcuts Guide -->
+    <div id="shortcutModal" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 hidden">
+        <div class="glass max-w-md w-full rounded-2xl p-6 flex flex-col gap-4 shadow-2xl relative border border-slate-700">
+            <button onclick="closeModal('shortcutModal')" class="absolute top-4 right-4 text-slate-400 hover:text-white">
+                <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
+            <h3 class="text-lg font-bold text-slate-100 flex items-center gap-2">
+                <i class="fa-solid fa-keyboard text-indigo-400"></i> কীবোর্ড শর্টকাটস
+            </h3>
+            <div class="flex flex-col gap-2 text-sm">
+                <div class="flex justify-between py-1.5 border-b border-slate-800">
+                    <span class="text-slate-400">প্লে / পজ টগল</span>
+                    <kbd class="px-2 py-0.5 bg-slate-800 text-indigo-300 font-mono text-xs rounded">Space</kbd>
+                </div>
+                <div class="flex justify-between py-1.5 border-b border-slate-800">
+                    <span class="text-slate-400">ফুলস্ক্রিন টগল</span>
+                    <kbd class="px-2 py-0.5 bg-slate-800 text-indigo-300 font-mono text-xs rounded">F</kbd>
+                </div>
+                <div class="flex justify-between py-1.5 border-b border-slate-800">
+                    <span class="text-slate-400">সাউন্ড মিউট / আনমিউট</span>
+                    <kbd class="px-2 py-0.5 bg-slate-800 text-indigo-300 font-mono text-xs rounded">M</kbd>
+                </div>
+                <div class="flex justify-between py-1.5 border-b border-slate-800">
+                    <span class="text-slate-400">পিকচার-ইন-পিকচার (PiP)</span>
+                    <kbd class="px-2 py-0.5 bg-slate-800 text-indigo-300 font-mono text-xs rounded">P</kbd>
+                </div>
+                <div class="flex justify-between py-1.5 border-b border-slate-800">
+                    <span class="text-slate-400">ভলিউম বাড়ানো / কমানো</span>
+                    <kbd class="px-2 py-0.5 bg-slate-800 text-indigo-300 font-mono text-xs rounded">↑ / ↓</kbd>
+                </div>
+                <div class="flex justify-between py-1.5">
+                    <span class="text-slate-400">আগের / পরের চ্যানেল</span>
+                    <kbd class="px-2 py-0.5 bg-slate-800 text-indigo-300 font-mono text-xs rounded">← / →</kbd>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN JAVASCRIPT LOGIC -->
+    <script>
+        // Initial Default Channels
+        const defaultChannels = [
+            {
+                id: 'ch-1',
+                name: "Willow HD (চ্যানেল ১)",
+                url: "http://tvsen5.aynascope.net/willowhd/index.m3u8",
+                category: "sports",
+                icon: "fa-baseball"
+            },
+            {
+                id: 'ch-2',
+                name: "Stream HD (চ্যানেল ২)",
+                url: "http://tvsen7.aynascope.net/rEBp38Ax/index.m3u8",
+                category: "sports",
+                icon: "fa-satellite-dish"
+            }
+        ];
+
+        // State Management
+        let channels = [];
+        let favorites = JSON.parse(localStorage.getItem('icf_favorites')) || ['ch-1'];
+        let activeChannel = null;
+        let activeCategory = 'all';
+        let currentHls = null;
+        let retryAttempts = 0;
+
+        // Elements
+        const video = document.getElementById('videoPlayer');
+        const spinner = document.getElementById('playerSpinner');
+        const qualitySelect = document.getElementById('qualitySelect');
+        const audioSelect = document.getElementById('audioSelect');
+
+        // Initialize App
+        window.addEventListener('DOMContentLoaded', () => {
+            loadChannelsFromStorage();
+            renderChannels();
+            
+            // Auto play first channel
+            if (channels.length > 0) {
+                switchChannel(channels[0]);
+            }
+
+            setupKeyboardShortcuts();
+        });
+
+        // Load Custom Channels from LocalStorage
+        function loadChannelsFromStorage() {
+            const savedCustom = JSON.parse(localStorage.getItem('icf_custom_channels')) || [];
+            channels = [...defaultChannels, ...savedCustom];
+        }
+
+        // Render Channels in Sidebar
+        function renderChannels() {
+            const container = document.getElementById('channelList');
+            container.innerHTML = '';
+
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+
+            const filtered = channels.filter(ch => {
+                const matchesSearch = ch.name.toLowerCase().includes(searchTerm);
+                let matchesCat = true;
+
+                if (activeCategory === 'favorites') {
+                    matchesCat = favorites.includes(ch.id);
+                } else if (activeCategory === 'custom') {
+                    matchesCat = ch.id.startsWith('custom-');
+                } else if (activeCategory !== 'all') {
+                    matchesCat = ch.category === activeCategory;
+                }
+
+                return matchesSearch && matchesCat;
+            });
+
+            if (filtered.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-10 text-slate-500">
+                        <i class="fa-solid fa-tv text-3xl mb-2 opacity-50"></i>
+                        <p class="text-sm">কোনো চ্যানেল পাওয়া যায়নি</p>
+                    </div>
+                `;
+                return;
+            }
+
+            filtered.forEach(ch => {
+                const isActive = activeChannel && activeChannel.id === ch.id;
+                const isFav = favorites.includes(ch.id);
+                const isCustom = ch.id.startsWith('custom-');
+
+                const card = document.createElement('div');
+                card.className = `glass-card p-3 rounded-xl flex items-center justify-between gap-3 cursor-pointer transition-all duration-200 group hover:border-indigo-500/50 ${
+                    isActive ? 'bg-indigo-600/20 border-indigo-500/80 shadow-lg shadow-indigo-500/10' : ''
+                }`;
+
+                card.onclick = () => switchChannel(ch);
+
+                card.innerHTML = `
+                    <div class="flex items-center gap-3 overflow-hidden">
+                        <div class="w-10 h-10 rounded-lg shrink-0 ${isActive ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400 group-hover:text-indigo-400'} flex items-center justify-center transition">
+                            <i class="fa-solid ${ch.icon || 'fa-tv'} text-sm"></i>
+                        </div>
+                        <div class="overflow-hidden">
+                            <h4 class="text-xs font-semibold ${isActive ? 'text-white' : 'text-slate-200'} truncate">${ch.name}</h4>
+                            <p class="text-[10px] ${isActive ? 'text-indigo-300' : 'text-slate-500'} truncate">
+                                ${isActive ? '● এখন চলছে' : (ch.category || 'General')}
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center gap-1">
+                        <button onclick="event.stopPropagation(); toggleFavorite('${ch.id}')" class="p-2 text-slate-500 hover:text-rose-500 transition">
+                            <i class="fa-solid fa-heart ${isFav ? 'text-rose-500' : ''}"></i>
+                        </button>
+                        ${isCustom ? `
+                            <button onclick="event.stopPropagation(); deleteCustomChannel('${ch.id}')" title="ডিলিট করুন" class="p-2 text-slate-500 hover:text-red-400 transition">
+                                <i class="fa-solid fa-trash text-xs"></i>
+                            </button>
+                        ` : ''}
+                    </div>
+                `;
+
+                container.appendChild(card);
+            });
+        }
+
+        // HLS Stream Playback Handler
+        function playStream(url) {
+            showSpinner(true);
+
+            if (currentHls) {
+                currentHls.destroy();
+            }
+
+            if (Hls.isSupported()) {
+                const hls = new Hls({
+                    enableWorker: true,
+                    lowLatencyMode: true,
+                    backBufferLength: 90
+                });
+                currentHls = hls;
+
+                hls.loadSource(url);
+                hls.attachMedia(video);
+
+                hls.on(Hls.Events.MANIFEST_PARSED, function (event, data) {
+                    showSpinner(false);
+                    retryAttempts = 0;
+                    video.play().catch(() => {});
+                    setupQualitySelector(hls);
+                    setupAudioSelector(hls);
+                });
+
+                // Auto Reconnect / Error Handling
+                hls.on(Hls.Events.ERROR, function (event, data) {
+                    if (data.fatal) {
+                        switch (data.type) {
+                            case Hls.ErrorTypes.NETWORK_ERROR:
+                                handleRetry("নেটওয়ার্ক সমস্যা! পুনঃসংযোগের চেষ্টা চলছে...");
+                                hls.startLoad();
+                                break;
+                            case Hls.ErrorTypes.MEDIA_ERROR:
+                                handleRetry("মিডিয়া লোড সমস্যা! রিকভার করা হচ্ছে...");
+                                hls.recoverMediaError();
+                                break;
+                            default:
+                                showToast("স্ট্রিম লোড করা সম্ভব হয়নি", "error");
+                                showSpinner(false);
+                                hls.destroy();
+                                break;
+                        }
+                    }
+                });
+
+            } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                // Safari Fallback
+                video.src = url;
+                video.addEventListener('loadedmetadata', function () {
+                    showSpinner(false);
+                    video.play();
+                });
+            } else {
+                showToast("আপনার ব্রাউজার HLS স্ট্রিমিং সাপোর্ট করে না", "error");
+                showSpinner(false);
+            }
+        }
+
+        // Handle Reconnect Retries
+        function handleRetry(msg) {
+            retryAttempts++;
+            if (retryAttempts <= 5) {
+                showToast(`${msg} (${retryAttempts}/5)`, "warning");
+            } else {
+                showToast("চ্যানেলটি এই মুহূর্তে অফলাইন আছে", "error");
+                showSpinner(false);
+            }
+        }
+
+        // Setup Video Quality Switcher
+        function setupQualitySelector(hls) {
+            qualitySelect.innerHTML = '<option value="-1">Auto Quality</option>';
+            
+            if (hls.levels && hls.levels.length > 1) {
+                hls.levels.forEach((level, index) => {
+                    const option = document.createElement('option');
+                    option.value = index;
+                    const label = level.height ? `${level.height}p` : `${Math.round(level.bitrate / 1000)} kbps`;
+                    option.text = label;
+                    qualitySelect.appendChild(option);
+                });
+
+                qualitySelect.onchange = (e) => {
+                    hls.currentLevel = parseInt(e.target.value);
+                    showToast(`কোয়ালিটি পরিবর্তন: ${e.target.options[e.target.selectedIndex].text}`, "info");
+                };
+            }
+        }
+
+        // Setup Audio Tracks
+        function setupAudioSelector(hls) {
+            const wrapper = document.getElementById('audioTrackWrapper');
+            audioSelect.innerHTML = '<option value="-1">Default Audio</option>';
+
+            if (hls.audioTracks && hls.audioTracks.length > 1) {
+                wrapper.classList.remove('hidden');
+                hls.audioTracks.forEach((track, index) => {
+                    const option = document.createElement('option');
+                    option.value = index;
+                    option.text = track.name || `Track ${index + 1}`;
+                    audioSelect.appendChild(option);
+                });
+
+                audioSelect.onchange = (e) => {
+                    hls.audioTrack = parseInt(e.target.value);
+                };
+            } else {
+                wrapper.classList.add('hidden');
+            }
+        }
+
+        // Switch Active Channel
+        function switchChannel(channel) {
+            activeChannel = channel;
+            document.getElementById('activeChannelTitle').innerText = channel.name;
+            document.getElementById('activeChannelMeta').innerText = `ক্যাটাগরি: ${channel.category || 'General'}`;
+            document.getElementById('currentChannelBadge').innerText = channel.name;
+            
+            updateFavIconState();
+            renderChannels();
+            playStream(channel.url);
+        }
+
+        // Favorite Toggle System
+        function toggleFavorite(id) {
+            if (favorites.includes(id)) {
+                favorites = favorites.filter(favId => favId !== id);
+                showToast("ফেভারিট থেকে সরানো হয়েছে", "info");
+            } else {
+                favorites.push(id);
+                showToast("ফেভারিটে সেভ করা হয়েছে ❤️", "success");
+            }
+            localStorage.setItem('icf_favorites', JSON.stringify(favorites));
+            updateFavIconState();
+            renderChannels();
+        }
+
+        function toggleCurrentFavorite() {
+            if (activeChannel) {
+                toggleFavorite(activeChannel.id);
+            }
+        }
+
+        function updateFavIconState() {
+            const btn = document.getElementById('favCurrentBtn');
+            const icon = document.getElementById('favCurrentIcon');
+            if (activeChannel && favorites.includes(activeChannel.id)) {
+                icon.className = "fa-solid fa-heart text-rose-500";
+            } else {
+                icon.className = "fa-solid fa-heart text-slate-400";
+            }
+        }
+
+        // Category Filter
+        function setCategory(cat) {
+            activeCategory = cat;
+            document.querySelectorAll('.cat-btn').forEach(btn => {
+                btn.classList.remove('bg-indigo-600', 'text-white');
+                btn.classList.add('bg-slate-800', 'text-slate-400');
+            });
+
+            event.target.classList.remove('bg-slate-800', 'text-slate-400');
+            event.target.classList.add('bg-indigo-600', 'text-white');
+
+            renderChannels();
+        }
+
+        function filterChannels() {
+            renderChannels();
+        }
+
+        // Add Custom Channel Modal Handler
+        function handleAddChannel(e) {
+            e.preventDefault();
+            const name = document.getElementById('newChannelName').value;
+            const url = document.getElementById('newChannelUrl').value;
+            const category = document.getElementById('newChannelCat').value;
+
+            const newChannel = {
+                id: 'custom-' + Date.now(),
+                name,
+                url,
+                category,
+                icon: "fa-rss"
+            };
+
+            const customChannels = JSON.parse(localStorage.getItem('icf_custom_channels')) || [];
+            customChannels.push(newChannel);
+            localStorage.setItem('icf_custom_channels', JSON.stringify(customChannels));
+
+            loadChannelsFromStorage();
+            renderChannels();
+            closeModal('addChannelModal');
+            showToast("নতুন চ্যানেল যুক্ত হয়েছে!", "success");
+
+            // Clear Form
+            e.target.reset();
+        }
+
+        function deleteCustomChannel(id) {
+            let customChannels = JSON.parse(localStorage.getItem('icf_custom_channels')) || [];
+            customChannels = customChannels.filter(ch => ch.id !== id);
+            localStorage.setItem('icf_custom_channels', JSON.stringify(customChannels));
+
+            loadChannelsFromStorage();
+            renderChannels();
+            showToast("চ্যানেল মুছে ফেলা হয়েছে", "info");
+        }
+
+        // Player Actions (PiP & Fullscreen)
+        async function togglePiP() {
+            try {
+                if (document.pictureInPictureElement) {
+                    await document.exitPictureInPicture();
+                } else if (document.pictureInPictureEnabled) {
+                    await video.requestPictureInPicture();
+                }
+            } catch (err) {
+                showToast("PiP মোড চালু করা যায়নি", "error");
+            }
+        }
+
+        function toggleFullscreen() {
+            if (!document.fullscreenElement) {
+                video.requestFullscreen().catch(err => {
+                    showToast("ফুলস্ক্রিন স্ক্রিন অন করা যায়নি", "error");
+                });
+            } else {
+                document.exitFullscreen();
+            }
+        }
+
+        // Keyboard Shortcuts Handler
+        function setupKeyboardShortcuts() {
+            window.addEventListener('keydown', (e) => {
+                // Ignore key shortcuts if user typing in input
+                if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) return;
+
+                switch(e.code) {
+                    case 'Space':
+                        e.preventDefault();
+                        video.paused ? video.play() : video.pause();
+                        break;
+                    case 'KeyF':
+                        e.preventDefault();
+                        toggleFullscreen();
+                        break;
+                    case 'KeyM':
+                        e.preventDefault();
+                        video.muted = !video.muted;
+                        showToast(video.muted ? "সাউন্ড মিউট করা হলো" : "সাউন্ড অন করা হলো", "info");
+                        break;
+                    case 'KeyP':
+                        e.preventDefault();
+                        togglePiP();
+                        break;
+                    case 'ArrowUp':
+                        e.preventDefault();
+                        video.volume = Math.min(1, video.volume + 0.1);
+                        showToast(`ভলিউম: ${Math.round(video.volume * 100)}%`, "info");
+                        break;
+                    case 'ArrowDown':
+                        e.preventDefault();
+                        video.volume = Math.max(0, video.volume - 0.1);
+                        showToast(`ভলিউম: ${Math.round(video.volume * 100)}%`, "info");
+                        break;
+                    case 'ArrowRight':
+                        e.preventDefault();
+                        switchNextChannel(1);
+                        break;
+                    case 'ArrowLeft':
+                        e.preventDefault();
+                        switchNextChannel(-1);
+                        break;
+                }
+            });
+        }
+
+        function switchNextChannel(direction) {
+            if (channels.length === 0) return;
+            const currentIndex = channels.findIndex(ch => activeChannel && ch.id === activeChannel.id);
+            let nextIndex = currentIndex + direction;
+            
+            if (nextIndex >= channels.length) nextIndex = 0;
+            if (nextIndex < 0) nextIndex = channels.length - 1;
+
+            switchChannel(channels[nextIndex]);
+        }
+
+        // Share Link Function
+        function shareCurrentChannel() {
+            if (activeChannel) {
+                navigator.clipboard.writeText(activeChannel.url);
+                showToast("স্ট্রিমিং লিংক ক্লিপবোর্ডে কপি হয়েছে!", "success");
+            }
+        }
+
+        // UI Helpers (Spinner, Modals, Toast)
+        function showSpinner(show) {
+            spinner.style.opacity = show ? '1' : '0';
+        }
+
+        function openModal(id) {
+            document.getElementById(id).classList.remove('hidden');
+        }
+
+        function closeModal(id) {
+            document.getElementById(id).classList.add('hidden');
+        }
+
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+
+            const bgColors = {
+                success: 'bg-emerald-600',
+                error: 'bg-rose-600',
+                warning: 'bg-amber-600',
+                info: 'bg-indigo-600'
+            };
+
+            toast.className = `${bgColors[type] || 'bg-indigo-600'} text-white text-xs font-semibold px-4 py-2.5 rounded-xl shadow-lg flex items-center gap-2 transform transition-all duration-300 translate-x-10 opacity-0 pointer-events-auto`;
+            toast.innerHTML = `<span>${message}</span>`;
+
+            container.appendChild(toast);
+
+            setTimeout(() => {
+                toast.classList.remove('translate-x-10', 'opacity-0');
+            }, 10);
+
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-x-10');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
