@@ -113,7 +113,7 @@
             <div class="relative w-full aspect-video bg-black rounded-2xl overflow-hidden shadow-2xl border border-slate-800 group glow-effect">
                 
                 <!-- Video Element -->
-                <video id="videoPlayer" class="w-full h-full object-contain cursor-pointer" autoplay playsinline></video>
+                <video id="videoPlayer" class="w-full h-full object-contain cursor-pointer" controls autoplay playsinline></video>
 
                 <!-- Loading Spinner Overlay -->
                 <div id="playerSpinner" class="absolute inset-0 bg-slate-950/80 backdrop-blur-sm flex flex-col items-center justify-center gap-3 transition-opacity duration-300 pointer-events-none opacity-0">
@@ -420,13 +420,16 @@
             });
         }
 
-        // HLS Stream Playback Handler
+        // HLS Stream Playback Handler with CORS Proxy Fallback
         function playStream(url) {
             showSpinner(true);
 
             if (currentHls) {
                 currentHls.destroy();
             }
+
+            // CORS Proxy bypass for browser HTTP/CORS Restrictions
+            const proxyUrl = "https://corsproxy.io/?" + encodeURIComponent(url);
 
             if (Hls.isSupported()) {
                 const hls = new Hls({
@@ -436,10 +439,13 @@
                 });
                 currentHls = hls;
 
-                hls.loadSource(url);
+                let triedDirect = false;
+
+                // Load with Proxy first to bypass browser CORS block
+                hls.loadSource(proxyUrl);
                 hls.attachMedia(video);
 
-                hls.on(Hls.Events.MANIFEST_PARSED, function (event, data) {
+                hls.on(Hls.Events.MANIFEST_PARSED, function () {
                     showSpinner(false);
                     retryAttempts = 0;
                     video.play().catch(() => {});
@@ -450,31 +456,34 @@
                 // Auto Reconnect / Error Handling
                 hls.on(Hls.Events.ERROR, function (event, data) {
                     if (data.fatal) {
-                        switch (data.type) {
-                            case Hls.ErrorTypes.NETWORK_ERROR:
-                                handleRetry("নেটওয়ার্ক সমস্যা! পুনঃসংযোগের চেষ্টা চলছে...");
-                                hls.startLoad();
-                                break;
-                            case Hls.ErrorTypes.MEDIA_ERROR:
-                                handleRetry("মিডিয়া লোড সমস্যা! রিকভার করা হচ্ছে...");
-                                hls.recoverMediaError();
-                                break;
-                            default:
-                                showToast("স্ট্রিম লোড করা সম্ভব হয়নি", "error");
-                                showSpinner(false);
-                                hls.destroy();
-                                break;
+                        if (!triedDirect) {
+                            // If Proxy fails, try direct URL
+                            triedDirect = true;
+                            hls.loadSource(url);
+                        } else if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+                            handleRetry("নেটওয়ার্ক সমস্যা! পুনঃসংযোগের চেষ্টা চলছে...");
+                            hls.startLoad();
+                        } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+                            handleRetry("মিডিয়া লোড সমস্যা! রিকভার করা হচ্ছে...");
+                            hls.recoverMediaError();
+                        } else {
+                            showToast("স্ট্রিমটি সার্ভার থেকে বন্ধ রয়েছে বা সংযোগ করা সম্ভব হচ্ছে না", "error");
+                            showSpinner(false);
+                            hls.destroy();
                         }
                     }
                 });
 
             } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
                 // Safari Fallback
-                video.src = url;
+                video.src = proxyUrl;
                 video.addEventListener('loadedmetadata', function () {
                     showSpinner(false);
                     video.play();
                 });
+                video.onerror = function() {
+                    video.src = url;
+                };
             } else {
                 showToast("আপনার ব্রাউজার HLS স্ট্রিমিং সাপোর্ট করে না", "error");
                 showSpinner(false);
@@ -484,8 +493,8 @@
         // Handle Reconnect Retries
         function handleRetry(msg) {
             retryAttempts++;
-            if (retryAttempts <= 5) {
-                showToast(`${msg} (${retryAttempts}/5)`, "warning");
+            if (retryAttempts <= 3) {
+                showToast(`${msg} (${retryAttempts}/3)`, "warning");
             } else {
                 showToast("চ্যানেলটি এই মুহূর্তে অফলাইন আছে", "error");
                 showSpinner(false);
@@ -567,7 +576,6 @@
         }
 
         function updateFavIconState() {
-            const btn = document.getElementById('favCurrentBtn');
             const icon = document.getElementById('favCurrentIcon');
             if (activeChannel && favorites.includes(activeChannel.id)) {
                 icon.className = "fa-solid fa-heart text-rose-500";
@@ -658,7 +666,6 @@
         // Keyboard Shortcuts Handler
         function setupKeyboardShortcuts() {
             window.addEventListener('keydown', (e) => {
-                // Ignore key shortcuts if user typing in input
                 if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) return;
 
                 switch(e.code) {
