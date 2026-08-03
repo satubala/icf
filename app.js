@@ -1,4 +1,4 @@
-const PLAYLIST_URL = 'https://raw.githubusercontent.com/abusaeeidx/CricHd-playlists-Auto-Update-permanent/refs/heads/main/ALL.m3u';
+const PLAYLIST_URL = 'https://raw.githubusercontent.com/satubala/icf/refs/heads/main/c.m3u8';
 
 // List of public CORS proxies for fallback
 const PROXIES = [
