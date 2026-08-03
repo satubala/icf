@@ -32,7 +32,9 @@ body {
     position: relative;
 }
 
-/* Sidebar Layout & Header */
+/* ==========================================
+   ডেক্সটপ সাইডবার ও হেডার লেআউট
+   ========================================== */
 .sidebar {
     width: var(--sidebar-width);
     background-color: var(--bg-card);
@@ -65,6 +67,40 @@ body {
     font-size: 0.8rem;
     color: var(--text-muted);
     font-weight: normal;
+}
+
+.playlist-input-container {
+    display: flex;
+    gap: 8px;
+}
+
+.playlist-input-container input {
+    flex: 1;
+    padding: 8px 12px;
+    background: var(--bg-main);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    color: #fff;
+    font-size: 0.85rem;
+    outline: none;
+}
+
+.playlist-input-container input:focus {
+    border-color: var(--accent);
+}
+
+.playlist-input-container button {
+    padding: 8px 12px;
+    background: var(--accent);
+    border: none;
+    border-radius: 8px;
+    color: #fff;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.playlist-input-container button:hover {
+    background: var(--accent-hover);
 }
 
 .search-box {
@@ -106,7 +142,9 @@ body {
     cursor: pointer;
 }
 
-/* Channel Items */
+/* ==========================================
+   চ্যানেল আইটেম ও লিস্ট ডিজাইন
+   ========================================== */
 .channel-list {
     flex: 1;
     overflow-y: auto;
@@ -121,7 +159,7 @@ body {
     border-radius: 8px;
     cursor: pointer;
     transition: all 0.2s;
-    margin-bottom: 4px;
+    margin-bottom: 6px;
     position: relative;
 }
 
@@ -177,7 +215,9 @@ body {
     color: #f59e0b;
 }
 
-/* Player Main Area */
+/* ==========================================
+   ভিডিও প্লেয়ার ও কন্ট্রোল লেআউট
+   ========================================== */
 .main-content {
     flex: 1;
     position: relative;
@@ -202,7 +242,6 @@ video {
     object-fit: contain;
 }
 
-/* Player Overlay Controls */
 .controls-overlay {
     position: absolute;
     top: 0;
@@ -303,7 +342,7 @@ video {
     font-size: 0.85rem;
 }
 
-/* Spinner Loader */
+/* স্পিনার লোডার */
 .loader {
     position: absolute;
     border: 4px solid rgba(255, 255, 255, 0.1);
@@ -321,33 +360,83 @@ video {
     100% { transform: rotate(360deg); }
 }
 
-/* Mobile Responsiveness */
-/* মোবাইল রেসপনসিভ লেআউট (ভিডিও উপরে, নিচে চ্যানেল লিস্ট) */
+/* ==========================================
+   মোবাইল নেটিভ অ্যাপ লেআউট (Sticky Video + Cards)
+   ========================================== */
 @media (max-width: 768px) {
     .app-container {
         flex-direction: column;
         height: 100vh;
-        overflow: hidden;
+        overflow-y: auto;
+        background-color: var(--bg-main);
+        -webkit-overflow-scrolling: touch;
     }
 
-    /* ভিডিও প্লেয়ারের সাইজ কমিয়ে উপরে রাখা */
+    /* উপরে স্টিকি ভিডিও প্লেয়ার (Aspect Ratio 16:9) */
     .main-content {
-        height: 40vh;
+        position: sticky;
+        top: 0;
+        z-index: 100;
+        width: 100%;
+        height: auto;
+        aspect-ratio: 16 / 9;
         flex: none;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+        background: #000;
     }
 
-    /* চ্যানেল লিস্ট ভিডিওর নিচে পুরো জায়গা জুড়ে থাকবে */
+    .video-wrapper {
+        width: 100%;
+        height: 100%;
+    }
+
+    /* ভিডিওর নিচে স্ক্রোলযোগ্য চ্যানেল লিস্ট */
     .sidebar {
         position: relative;
         width: 100%;
         max-width: 100%;
-        height: 60vh;
-        transform: none !important; /* সবসময় দেখা যাবে */
+        height: auto;
+        flex: 1;
+        transform: none !important;
         border-right: none;
-        border-top: 1px solid rgba(255, 255, 255, 0.1);
+        background: var(--bg-main);
     }
 
-    /* মোবাইলে আলাদা সাইডবার বাটন হাইড রাখা */
+    .sidebar-header {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        background: rgba(19, 27, 46, 0.95);
+        backdrop-filter: blur(12px);
+        padding: 12px 16px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .channel-list {
+        padding: 12px 16px 24px 16px;
+        overflow-y: visible;
+    }
+
+    /* মডার্ন কার্ড ভিত্তিক লিস্ট ডিজাইন */
+    .channel-item {
+        background: var(--bg-card);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        margin-bottom: 8px;
+        padding: 12px;
+        border-radius: 12px;
+        transition: transform 0.15s ease, background 0.15s ease;
+    }
+
+    .channel-item:active {
+        transform: scale(0.98);
+    }
+
+    .channel-item.active {
+        background: linear-gradient(135deg, var(--accent) 0%, #1d4ed8 100%);
+        border-color: transparent;
+        box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+    }
+
     .btn-toggle-sidebar {
         display: none;
     }
@@ -355,4 +444,8 @@ video {
     .volume-slider {
         display: none;
     }
-        }
+
+    .controls-overlay {
+        padding: 12px;
+    }
+}
