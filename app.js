@@ -1,7 +1,13 @@
 const PLAYLIST_URL = 'https://raw.githubusercontent.com/abusaeeidx/CricHd-playlists-Auto-Update-permanent/refs/heads/main/ALL.m3u';
-const CORS_PROXY = 'https://corsproxy.io/?';
 
-// DOM Element Selections
+// List of public CORS proxies for fallback
+const PROXIES = [
+    (url) => `https://corsproxy.io/?${encodeURIComponent(url)}`,
+    (url) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+    (url) => `https://thingproxy.freeboard.io/fetch/${url}`
+];
+
+// DOM Elements
 const video = document.getElementById('videoPlayer');
 const videoWrapper = document.getElementById('videoWrapper');
 const channelList = document.getElementById('channelList');
@@ -18,16 +24,13 @@ const qualitySelect = document.getElementById('qualitySelect');
 const toggleSidebarBtn = document.getElementById('toggleSidebar');
 const sidebar = document.getElementById('sidebar');
 
-// State Variables
 let hls = null;
 let channelsData = [];
 let favorites = JSON.parse(localStorage.getItem('iptv_favs') || '[]');
 let currentChannelIndex = -1;
-let controlsTimeout;
 
-// Dynamic Toast Component
 const errorToast = document.createElement('div');
-errorToast.style.cssText = 'position:absolute; top:20px; right:20px; background:rgba(239,68,68,0.9); color:#fff; padding:10px 16px; border-radius:6px; font-size:0.85rem; z-index:30; display:none; backdrop-filter:blur(4px);';
+errorToast.style.cssText = 'position:absolute; top:20px; right:20px; background:rgba(239,68,68,0.95); color:#fff; padding:10px 16px; border-radius:6px; font-size:0.85rem; z-index:30; display:none; backdrop-filter:blur(4px);';
 videoWrapper.appendChild(errorToast);
 
 function showError(msg) {
@@ -36,33 +39,39 @@ function showError(msg) {
     setTimeout(() => { errorToast.style.display = 'none'; }, 4000);
 }
 
-// Fetch and Parse M3U Playlist
+// Fetch helper with fallback proxies
+async function fetchWithProxy(url) {
+    try {
+        const directRes = await fetch(url);
+        if (directRes.ok) return await directRes.text();
+    } catch (e) {
+        console.warn('Direct fetch failed. Trying CORS proxies...');
+    }
+
+    for (const getProxyUrl of PROXIES) {
+        try {
+            const proxyRes = await fetch(getProxyUrl(url));
+            if (proxyRes.ok) return await proxyRes.text();
+        } catch (e) {
+            continue;
+        }
+    }
+    throw new Error('All proxies failed');
+}
+
 async function loadPlaylist() {
     showLoader(true);
     try {
-        let text = '';
-        try {
-            const res = await fetch(PLAYLIST_URL);
-            text = await res.text();
-        } catch (e) {
-            const res = await fetch(CORS_PROXY + encodeURIComponent(PLAYLIST_URL));
-            text = await res.text();
-        }
-
+        const text = await fetchWithProxy(PLAYLIST_URL);
         channelsData = parseM3U(text);
         populateCategories();
         renderChannels(channelsData);
 
-        const lastPlayedUrl = localStorage.getItem('iptv_last_channel');
-        let initialIdx = channelsData.findIndex(ch => ch.url === lastPlayedUrl);
-        if (initialIdx === -1 && channelsData.length > 0) initialIdx = 0;
-
-        if (initialIdx !== -1) {
-            playChannel(initialIdx);
+        if (channelsData.length > 0) {
+            playChannel(0);
         }
     } catch (err) {
-        showError('Failed to fetch or parse playlist file.');
-        console.error(err);
+        showError('Unable to load playlist. Check your internet connection.');
     } finally {
         showLoader(false);
     }
@@ -115,12 +124,10 @@ function renderChannels(channels) {
         const realIdx = channelsData.findIndex(c => c.url === ch.url);
         const item = document.createElement('div');
         item.className = `channel-item ${realIdx === currentChannelIndex ? 'active' : ''}`;
-        
         const isFav = favorites.includes(ch.url);
-        const logoSrc = ch.logo || 'https://via.placeholder.com/40/131b2e/ffffff?text=TV';
 
         item.innerHTML = `
-            <img class="channel-logo" src="${logoSrc}" onerror="this.src='https://via.placeholder.com/40/131b2e/ffffff?text=TV'" />
+            <img class="channel-logo" src="${ch.logo}" onerror="this.src='https://via.placeholder.com/40/131b2e/ffffff?text=TV'" />
             <div class="channel-details">
                 <div class="channel-name">${ch.name}</div>
                 <div class="channel-group">${ch.group}</div>
@@ -166,92 +173,57 @@ function filterChannels() {
     renderChannels(filtered);
 }
 
-// Channel Playback Controller
-function playChannel(index, useProxy = false) {
+function playChannel(index, proxyIndex = -1) {
     if (index < 0 || index >= channelsData.length) return;
     
     currentChannelIndex = index;
     const channel = channelsData[index];
-    localStorage.setItem('iptv_last_channel', channel.url);
 
     showLoader(true);
     document.getElementById('currentTitle').innerText = channel.name;
-    const logoImg = document.getElementById('currentLogo');
-    if (channel.logo) {
-        logoImg.src = channel.logo;
-        logoImg.style.display = 'block';
-    } else {
-        logoImg.style.display = 'none';
-    }
-
     filterChannels();
 
     let streamUrl = channel.url;
-    if (useProxy || streamUrl.startsWith('http://')) {
-        streamUrl = CORS_PROXY + encodeURIComponent(channel.url);
+    if (proxyIndex >= 0 && proxyIndex < PROXIES.length) {
+        streamUrl = PROXIES[proxyIndex](channel.url);
     }
 
     if (hls) hls.destroy();
 
-    if (Hls.isSupported()) {
-        hls = new Hls({
-            enableWorker: true,
-            lowLatencyMode: true,
-            xhrSetup: function(xhr) { xhr.withCredentials = false; }
-        });
+    // Mute video initially to guarantee autoplay permission
+    video.muted = true;
+    muteBtn.innerHTML = '<i class="fa-solid fa-volume-xmark"></i>';
+    volumeSlider.value = 0;
 
+    if (Hls.isSupported()) {
+        hls = new Hls({ enableWorker: true });
         hls.loadSource(streamUrl);
         hls.attachMedia(video);
 
         hls.on(Hls.Events.MANIFEST_PARSED, () => {
-            video.play().catch(() => {});
-            setupQualityLevels(hls.levels);
+            video.play().catch(e => console.log('Autoplay blocked:', e));
             showLoader(false);
         });
 
         hls.on(Hls.Events.ERROR, (event, data) => {
             if (data.fatal) {
-                if (!useProxy) {
-                    console.warn('Direct stream blocked. Attempting proxy fallback...');
-                    playChannel(index, true);
+                const nextProxyIndex = proxyIndex + 1;
+                if (nextProxyIndex < PROXIES.length) {
+                    playChannel(index, nextProxyIndex);
                 } else {
                     showLoader(false);
-                    showError('Stream failed to load (Offline or CORS restricted).');
+                    showError('Stream offline or blocked by host server.');
                 }
             }
         });
     } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
         video.src = streamUrl;
-        video.addEventListener('loadedmetadata', () => {
-            video.play();
-            showLoader(false);
-        });
+        video.play().catch(() => {});
+        showLoader(false);
     }
 }
 
-function setupQualityLevels(levels) {
-    qualitySelect.innerHTML = '<option value="-1">Auto Quality</option>';
-    levels.forEach((level, index) => {
-        const option = document.createElement('option');
-        option.value = index;
-        option.innerText = level.height ? `${level.height}p` : `Level ${index}`;
-        qualitySelect.appendChild(option);
-    });
-}
-
-// User Activity Timer (Hover & Touch)
-function handleUserActivity() {
-    videoWrapper.classList.add('user-active');
-    clearTimeout(controlsTimeout);
-    controlsTimeout = setTimeout(() => {
-        if (!video.paused) videoWrapper.classList.remove('user-active');
-    }, 3000);
-}
-
-// Event Listeners
-videoWrapper.addEventListener('mousemove', handleUserActivity);
-videoWrapper.addEventListener('touchstart', handleUserActivity);
-
+// Controls Logic
 playBtn.onclick = () => {
     if (video.paused) {
         video.play();
@@ -264,13 +236,13 @@ playBtn.onclick = () => {
 
 muteBtn.onclick = () => {
     video.muted = !video.muted;
-    volumeSlider.value = video.muted ? 0 : video.volume;
+    volumeSlider.value = video.muted ? 0 : (video.volume || 1);
     muteBtn.innerHTML = video.muted ? '<i class="fa-solid fa-volume-xmark"></i>' : '<i class="fa-solid fa-volume-high"></i>';
 };
 
 volumeSlider.oninput = (e) => {
     video.volume = e.target.value;
-    video.muted = (video.volume === 0);
+    video.muted = (video.volume == 0);
     muteBtn.innerHTML = video.muted ? '<i class="fa-solid fa-volume-xmark"></i>' : '<i class="fa-solid fa-volume-high"></i>';
 };
 
@@ -284,40 +256,10 @@ pipBtn.onclick = async () => {
     else if (document.pictureInPictureEnabled) await video.requestPictureInPicture();
 };
 
-qualitySelect.onchange = (e) => { if (hls) hls.currentLevel = parseInt(e.target.value); };
 toggleSidebarBtn.onclick = () => sidebar.classList.toggle('open');
 searchInput.oninput = filterChannels;
 categorySelect.onchange = filterChannels;
 
-// Keyboard Navigation
-document.addEventListener('keydown', (e) => {
-    if (document.activeElement.tagName === 'INPUT') return;
-    switch (e.key.toLowerCase()) {
-        case ' ':
-            e.preventDefault();
-            playBtn.click();
-            break;
-        case 'f':
-            fullscreenBtn.click();
-            break;
-        case 'm':
-            muteBtn.click();
-            break;
-        case 'p':
-            pipBtn.click();
-            break;
-        case 'arrowup':
-            e.preventDefault();
-            if (currentChannelIndex > 0) playChannel(currentChannelIndex - 1);
-            break;
-        case 'arrowdown':
-            e.preventDefault();
-            if (currentChannelIndex < channelsData.length - 1) playChannel(currentChannelIndex + 1);
-            break;
-    }
-});
-
 function showLoader(show) { loader.style.display = show ? 'block' : 'none'; }
 
-// Initialize Player
 loadPlaylist();
