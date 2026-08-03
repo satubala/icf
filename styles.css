@@ -322,22 +322,37 @@ video {
 }
 
 /* Mobile Responsiveness */
+/* মোবাইল রেসপনসিভ লেআউট (ভিডিও উপরে, নিচে চ্যানেল লিস্ট) */
 @media (max-width: 768px) {
-    .sidebar {
-        position: absolute;
-        top: 0;
-        bottom: 0;
-        left: 0;
-        width: 85%;
-        max-width: 320px;
-        transform: translateX(-100%);
+    .app-container {
+        flex-direction: column;
+        height: 100vh;
+        overflow: hidden;
     }
 
-    .sidebar.open {
-        transform: translateX(0);
+    /* ভিডিও প্লেয়ারের সাইজ কমিয়ে উপরে রাখা */
+    .main-content {
+        height: 40vh;
+        flex: none;
+    }
+
+    /* চ্যানেল লিস্ট ভিডিওর নিচে পুরো জায়গা জুড়ে থাকবে */
+    .sidebar {
+        position: relative;
+        width: 100%;
+        max-width: 100%;
+        height: 60vh;
+        transform: none !important; /* সবসময় দেখা যাবে */
+        border-right: none;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    /* মোবাইলে আলাদা সাইডবার বাটন হাইড রাখা */
+    .btn-toggle-sidebar {
+        display: none;
     }
 
     .volume-slider {
         display: none;
     }
-      }
+        }
